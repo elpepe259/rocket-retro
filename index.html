@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rocket Retro</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #03045e; --blue: #0077b6; --sky: #00b4d8; --celeste: #90e0ef; --ice: #caf0f8;
+    --red: #ff5d6c; --gold: #ffd23f;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; background: #020617; color: #fff; font-family: 'Press Start 2P', monospace; font-size: 12px; }
+  /* El juego mide 1280x540 (W x H en game.js) y se agranda para llenar la pantalla (fitScreen) */
+  #wrap {
+    position: absolute; left: 50%; top: 50%; width: 1280px; height: 540px; transform: translate(-50%, -50%);
+    overflow: hidden; box-shadow: 0 0 40px #00b4d855;
+  }
+  canvas { image-rendering: pixelated; } /* que los píxeles se vean nítidos al agrandar */
+  .hidden { display: none !important; }
+
+  /* Fondo de las pantallas: degradado azul → celeste */
+  .overlay {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center;
+    background: linear-gradient(160deg, var(--navy) 0%, #023e8a 40%, var(--blue) 70%, var(--sky) 100%);
+  }
+  .overlay::before { /* líneas de TV retro */
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, #ffffff08 0 2px, transparent 2px 4px);
+  }
+  #result { background: linear-gradient(160deg, #03045ee6, #0077b6e6 60%, #00b4d8e6); }
+
+  h1, h2 { margin: 0; letter-spacing: 2px; }
+  .title {
+    font-size: 40px; color: var(--ice);
+    background: linear-gradient(180deg, #fff 0%, var(--celeste) 50%, var(--sky) 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(4px 4px 0 var(--navy)) drop-shadow(0 0 14px #00b4d8aa);
+  }
+  .subtitle { margin-top: 10px; font-size: 9px; color: var(--ice); opacity: .85; }
+
+  .cards { display: flex; gap: 18px; align-items: stretch; }
+  .card {
+    width: 360px; padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center;
+    background: #03045e88; border: 2px solid #90e0ef66; box-shadow: inset 0 0 20px #00b4d833;
+  }
+  .card h2 { font-size: 12px; color: var(--celeste); }
+
+  /* Botones retro con degradado celeste */
+  button {
+    font: inherit; font-size: 11px; padding: 10px 14px; color: #fff; cursor: pointer;
+    background: linear-gradient(180deg, var(--celeste) 0%, var(--sky) 45%, var(--blue) 100%);
+    border: 2px solid var(--ice); border-radius: 8px;
+    box-shadow: 0 4px 0 var(--navy), 0 0 12px #00b4d866; text-shadow: 2px 2px 0 var(--navy);
+    transition: transform .05s, filter .15s;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.15); box-shadow: 0 4px 0 var(--navy), 0 0 20px #90e0efcc; }
+  button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--navy); }
+  button:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
+  button.big { font-size: 15px; padding: 14px 22px; width: 100%; }
+  button.p1, button.p2 { color: #fff; }
+  button.p1 { background: linear-gradient(180deg, #ff9aa5, var(--red) 50%, #c1121f); }
+  button.p2 { background: linear-gradient(180deg, var(--celeste), #4895ef 50%, #3a0ca3); }
+  button.small { font-size: 9px; padding: 6px 8px; }
+  .p1 { color: var(--red); } .p2 { color: var(--celeste); }
+
+  select { font: inherit; padding: 6px; color: #fff; background: var(--navy); border: 2px solid var(--celeste); border-radius: 6px; cursor: pointer; }
+  input { font: inherit; padding: 8px; width: 90px; color: #fff; background: var(--navy); border: 2px solid var(--celeste); border-radius: 6px; text-align: center; }
+  small { font-size: 8px; color: var(--ice); line-height: 1.9; opacity: .9; }
+  a { color: var(--gold); }
+  #pot { word-break: break-all; }
+  #pause .card button { width: 100%; }
+  .room-code { font-size: 34px; letter-spacing: 8px; color: var(--gold); min-height: 36px; }
+  #onlineStatus, #friendsStatus { min-height: 14px; font-size: 10px; color: var(--gold); }
+  #friendsList { width: 100%; max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  .friend { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #03045e99; }
+  .friend .fname { flex: 1; text-align: left; font-size: 11px; }
+  .friend .fstate { font-size: 9px; color: var(--ice); min-width: 130px; text-align: left; }
+  /* Cartel de invitación: arriba de todo, sobre cualquier pantalla */
+  #invite { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 10; display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 10px; background: #03045ef2; border: 2px solid var(--gold); box-shadow: 0 0 20px #ffd23f88; font-size: 11px; }
+  #pause { background: #03045ecc; } /* la pausa deja ver el partido de fondo */
+  .account { margin-top: 10px; font-size: 10px; color: var(--ice); }
+  #regError { min-height: 12px; font-size: 9px; color: var(--gold); }
+  label { font-size: 10px; color: var(--celeste); }
+  #status { min-height: 12px; font-size: 9px; color: var(--gold); }
+
+  /* Pantalla de controles */
+  #controlsTable { border-collapse: separate; border-spacing: 10px 8px; }
+  th { font-size: 14px; }
+  td:first-child { text-align: right; color: var(--ice); }
+  #controlsTable button {
+    min-width: 140px; color: var(--navy); text-shadow: none;
+    background: linear-gradient(180deg, #fff, var(--ice) 60%, var(--celeste));
+    border-color: #fff;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="game"></div>
+
+  <div id="menu" class="overlay">
+    <div>
+      <h1 class="title">ROCKET RETRO</h1>
+      <div class="subtitle">fútbol con autos · 1 vs 1</div>
+      <div class="account">👤 <span id="accountName"></span> <button id="changeAccount" class="small">cambiar</button></div>
+    </div>
+
+    <div class="cards">
+      <div class="card">
+        <h2>⚽ JUGAR</h2>
+        <button id="free" class="big">JUGAR</button>
+        <div><button id="openOnline">🌐 ONLINE</button> <button id="openFriends">👥 AMIGOS</button></div>
+        <button id="openTraining">🎯 ENTRENAMIENTO</button>
+        <div><label for="stadium">Cancha:</label> <select id="stadium"></select></div>
+        <div><label for="p2name" class="p1">Rival (J1 rojo):</label> <input id="p2name" maxlength="12" placeholder="JUGADOR 1" autocomplete="off" spellcheck="false" style="width:160px"></div>
+        <div><button id="openControls">⚙ CONTROLES</button> <button id="fullscreen">⛶ PANTALLA</button></div>
+        <small>
+          <span id="help"></span>
+          Joystick: palanca mover · A saltar · B bajar · X o RT turbo
+        </small>
+      </div>
+
+      <div class="card">
+        <h2>💰 PARTIDO CON APUESTA</h2>
+        <div>Apuesta: <input id="amount" type="number" value="0.1" min="0.01" step="0.01"> SOL</div>
+        <button id="dep1" class="p1">J1: conectar y apostar</button>
+        <small>Después cambiá de cuenta en Phantom</small>
+        <button id="dep2" class="p2">J2: conectar y apostar</button>
+        <div id="status"></div>
+        <button id="play" class="big" disabled>¡JUGAR POR EL POZO!</button>
+        <button id="refund" class="small" disabled>Devolver apuestas</button>
+        <small>
+          Pozo: <span id="pot"></span><br>
+          Saldo: <span id="potBal">?</span> SOL <button id="airdrop" class="small">+1 SOL</button><br>
+          SOL de prueba (devnet), sin valor real
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <div id="register" class="overlay hidden">
+    <h1 class="title" style="font-size:30px">CREÁ TU CUENTA</h1>
+    <small>Tu nombre de jugador para el modo online</small>
+    <div class="card" style="width:auto">
+      <label for="username">Nombre de usuario</label>
+      <input id="username" maxlength="12" autocomplete="off" spellcheck="false" style="width:240px">
+      <small>De 3 a 12 letras, números o _</small>
+      <div id="regError"></div>
+      <button id="registerBtn" class="big">CREAR CUENTA</button>
+    </div>
+  </div>
+
+  <div id="config" class="overlay hidden">
+    <h1 class="title" style="font-size:30px">CONTROLES</h1>
+    <small>Hacé clic en una tecla y apretá la nueva (ESC cancela)</small>
+    <div class="card" style="width:auto"><table id="controlsTable"></table></div>
+    <div><button id="resetControls">Restaurar</button> <button id="closeControls">Volver</button></div>
+  </div>
+
+  <div id="training" class="overlay hidden">
+    <h1 class="title" style="font-size:30px">ENTRENAMIENTO</h1>
+    <small>Un solo auto (sirven las teclas de J1 y de J2) · turbo infinito · R reinicia la jugada · P pausa</small>
+    <div class="cards">
+      <div class="card" style="width:230px">
+        <h2>🚗 LIBRE</h2>
+        <small>Practicá con la pelota sin reloj ni rival. Probá volteretas, rampas y tiros.</small>
+        <button id="train_libre" class="big">LIBRE</button>
+      </div>
+      <div class="card" style="width:230px">
+        <h2>⚽ TIROS</h2>
+        <small>La pelota viene hacia vos: metela en el arco de la derecha. 10 tiros.</small>
+        <button id="train_tiros" class="big">TIROS</button>
+      </div>
+      <div class="card" style="width:230px">
+        <h2>🧤 ARQUERO</h2>
+        <small>Te patean a tu arco: atajá o despejá la pelota. 10 tiros.</small>
+        <button id="train_arquero" class="big">ARQUERO</button>
+      </div>
+    </div>
+    <button id="closeTraining">Volver</button>
+  </div>
+
+  <div id="online" class="overlay hidden">
+    <h1 class="title" style="font-size:30px">ONLINE</h1>
+    <small>Cada uno juega en su compu. Uno crea la sala y le pasa el código al otro.</small>
+    <div class="cards">
+      <div class="card" style="width:300px">
+        <h2>🏠 CREAR SALA</h2>
+        <small>Jugás con el auto rojo, en la cancha que elegiste en el menú.</small>
+        <button id="createRoom" class="big">CREAR SALA</button>
+        <div id="roomCode" class="room-code"></div>
+      </div>
+      <div class="card" style="width:300px">
+        <h2>🔑 UNIRSE</h2>
+        <small>Jugás con el auto azul.</small>
+        <input id="joinCode" maxlength="4" placeholder="CÓDIGO" autocomplete="off" spellcheck="false" style="width:160px; text-transform:uppercase">
+        <button id="joinRoom" class="big">UNIRSE</button>
+      </div>
+    </div>
+    <div id="onlineStatus"></div>
+    <small>Online: A/D o ←/→ mover · W o ↑ saltar · S o ↓ bajar · ESPACIO o - turbo · no se puede pausar</small>
+    <button id="closeOnline">Volver</button>
+  </div>
+
+  <div id="friends" class="overlay hidden">
+    <h1 class="title" style="font-size:30px">AMIGOS</h1>
+    <small>Agregá a tus amigos por su nombre de usuario. Si están conectados los podés invitar a jugar online.</small>
+    <div class="card" style="width:520px">
+      <div><input id="friendName" maxlength="12" placeholder="Nombre de usuario" autocomplete="off" spellcheck="false" style="width:240px"> <button id="addFriend">➕ AGREGAR</button></div>
+      <div id="friendsList"></div>
+      <div id="friendsStatus"></div>
+    </div>
+    <button id="closeFriends">Volver</button>
+  </div>
+
+  <div id="invite" class="hidden">
+    <span id="inviteText"></span>
+    <button id="acceptInvite">ACEPTAR</button> <button id="declineInvite" class="small">NO</button>
+  </div>
+
+  <div id="pause" class="overlay hidden">
+    <h1 class="title" style="font-size:40px">PAUSA</h1>
+    <div class="card" style="width:300px">
+      <button id="resume" class="big">▶ CONTINUAR</button>
+      <button id="restart">↺ REINICIAR</button>
+      <button id="pauseControls">⚙ CONTROLES</button>
+      <button id="quit">✖ SALIR AL MENÚ</button>
+    </div>
+    <small>P o ESC para seguir jugando</small>
+  </div>
+
+  <div id="result" class="overlay hidden">
+    <h1 id="winner"></h1>
+    <div id="payout"></div>
+    <div><button id="retry" class="hidden">↺ Repetir</button> <button id="again">Volver al menú</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="stadiums.js"></script>
+<script src="solana.js"></script>
+<script src="net.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
