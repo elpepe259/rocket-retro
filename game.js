@@ -94,6 +94,8 @@ const saveControls = () => { try { localStorage.setItem('controls2', JSON.string
 
 // Teclas apretadas en este momento
 const held = new Set();
+const touchPointers = new Map(); // pointerId -> acción; cada dedo se suelta por separado
+let touchPlayer = 0;
 const isGameKey = code => [CONTROLS.online, ...CONTROLS.local].some(set => Object.values(set).flat().includes(code));
 // Windows a veces no avisa cuando se suelta Shift (sobre todo Shift derecho + flechas) y la tecla queda "trabada".
 // Cada evento de teclado trae el estado real de Shift/Ctrl/Alt: si dice que no está apretado, lo sacamos.
@@ -501,20 +503,21 @@ class Match extends Phaser.Scene {
     c.flame.emitParticleAt(c.body.x + back * (CAR_W / 2 - 2), c.body.y + 4, 4);
   }
 
-  // Junta teclado y joystick en un solo estado: { left, right, jump, jumpPressed, down, boost }
+  // Junta teclado, joystick y botones táctiles en el mismo estado.
   readInput(c) {
     if (mode.online === 'host' && c.player === 1) return this.remoteInput(c);
     // Online cada uno juega en su compu y en entrenamiento hay un solo auto: sirven las teclas de J1 y de J2
     const k = mode.online ? CONTROLS.online : this.training ? mergedControls() : CONTROLS.local[c.player];
     const pad = this.input.gamepad?.getPad(mode.online ? 0 : c.player);
-    const on = codes => codes.some(code => held.has(code));
+    const tactil = mode.online || this.training || c.player === touchPlayer ? new Set(touchPointers.values()) : new Set();
+    const on = action => tactil.has(action) || k[action].some(code => held.has(code));
     const stick = pad ? pad.leftStick.x : 0;
     const s = {
-      left: on(k.left) || !!pad?.left || stick < -0.3,
-      right: on(k.right) || !!pad?.right || stick > 0.3,
-      jump: on(k.jump) || !!pad?.A,
-      down: on(k.down) || !!pad?.down || !!pad?.B,
-      boost: on(k.boost) || !!pad?.X || (pad?.R2 ?? 0) > 0.3,
+      left: on('left') || !!pad?.left || stick < -0.3,
+      right: on('right') || !!pad?.right || stick > 0.3,
+      jump: on('jump') || !!pad?.A,
+      down: on('down') || !!pad?.down || !!pad?.B,
+      boost: on('boost') || !!pad?.X || (pad?.R2 ?? 0) > 0.3,
     };
     s.jumpPressed = s.jump && !c.prevJump;
     c.prevJump = s.jump;
@@ -848,11 +851,66 @@ function mergedControls() {
 // ---------- Pantalla completa ----------
 // Agranda todo el juego (canvas + menús) para llenar la ventana, sin deformarlo
 function fitScreen() {
-  const scale = Math.min(innerWidth / W, innerHeight / H);
+  const alto = innerHeight - $('touchControls').offsetHeight;
+  const scale = Math.min(innerWidth / W, Math.max(1, alto) / H);
+  $('wrap').style.setProperty('--game-top', `${alto / 2}px`);
   $('wrap').style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
 addEventListener('resize', fitScreen);
-fitScreen();
+
+// ---------- Celular / pantalla táctil ----------
+const coarsePointer = matchMedia('(any-pointer: coarse)');
+let mobile = navigator.maxTouchPoints > 0 || coarsePointer.matches;
+const touchButtons = [...document.querySelectorAll('.touch-button')];
+function clearTouches() {
+  touchPointers.clear();
+  for (const b of touchButtons) { b.classList.remove('pressed'); b.setAttribute('aria-pressed', 'false'); }
+}
+function updateTouchControls() {
+  const playing = !!game && !$('wrap').querySelector('.overlay:not(.hidden)');
+  document.body.classList.toggle('mobile', mobile);
+  document.body.classList.toggle('playing', playing);
+  $('touchControls').classList.toggle('hidden', !mobile || !playing);
+  if (!mobile || !playing) clearTouches();
+  $('touchPause').classList.toggle('hidden', !!mode.online);
+  $('touchReset').classList.toggle('hidden', !mode.training);
+  $('touchSwitch').classList.toggle('hidden', !!mode.online || !!mode.training);
+  const player = mode.online === 'guest' ? 1 : mode.online || mode.training ? 0 : touchPlayer;
+  $('touchCar').textContent = player ? 'AUTO AZUL' : 'AUTO ROJO';
+  $('touchCar').className = player ? 'p2' : 'p1';
+  fitScreen();
+}
+for (const b of touchButtons) {
+  b.addEventListener('pointerdown', e => {
+    if (e.button !== 0 || $('touchControls').classList.contains('hidden')) return;
+    e.preventDefault();
+    touchPointers.set(e.pointerId, b.dataset.action);
+    b.setPointerCapture(e.pointerId); // sigue recibiendo la suelta aunque el dedo salga del botón
+    b.classList.add('pressed');
+    b.setAttribute('aria-pressed', 'true');
+  });
+  const release = e => {
+    touchPointers.delete(e.pointerId);
+    const active = [...touchPointers.values()].includes(b.dataset.action);
+    b.classList.toggle('pressed', active);
+    b.setAttribute('aria-pressed', String(active));
+  };
+  for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(event, release);
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
+addEventListener('blur', clearTouches);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { held.clear(); clearTouches(); } });
+addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch' && !mobile) { mobile = true; updateTouchControls(); }
+}, { capture: true });
+coarsePointer.addEventListener('change', () => { mobile = navigator.maxTouchPoints > 0 || coarsePointer.matches; updateTouchControls(); });
+// Los mismos overlays cubren pausa, resultado, desconexión y menú: un solo punto libera los dedos.
+new MutationObserver(updateTouchControls).observe($('wrap'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+$('touchPause').onclick = pauseGame;
+$('touchReset').onclick = () => { clearTouches(); game?.scene.getScene('match').resetPlay(); };
+// ponytail: en local se maneja un auto a la vez; el rival usa teclado/joystick. Dos celulares usan online.
+$('touchSwitch').onclick = () => { clearTouches(); touchPlayer = 1 - touchPlayer; updateTouchControls(); };
+updateTouchControls();
 
 function enterFullscreen() {
   if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {}); // si el navegador no deja, sigue en ventana
@@ -872,6 +930,8 @@ function startTraining(drill) {
 }
 
 function launch() {
+  clearTouches();
+  touchPlayer = 0;
   enterFullscreen(); // al empezar a jugar pasa a pantalla completa (ESC para salir)
   for (const id of ['menu', 'training', 'result', 'pause', 'online']) $(id).classList.add('hidden');
   document.activeElement?.blur(); // que Espacio/Enter no vuelvan a apretar el botón

@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Rocket Retro</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
@@ -14,7 +14,7 @@
   body { margin: 0; overflow: hidden; background: #020617; color: #fff; font-family: 'Press Start 2P', monospace; font-size: 12px; }
   /* El juego mide 1280x540 (W x H en game.js) y se agranda para llenar la pantalla (fitScreen) */
   #wrap {
-    position: absolute; left: 50%; top: 50%; width: 1280px; height: 540px; transform: translate(-50%, -50%);
+    position: absolute; left: 50%; top: var(--game-top, 50%); width: 1280px; height: 540px; transform: translate(-50%, -50%);
     overflow: hidden; box-shadow: 0 0 40px #00b4d855;
   }
   canvas { image-rendering: pixelated; } /* que los píxeles se vean nítidos al agrandar */
@@ -94,6 +94,29 @@
     background: linear-gradient(180deg, #fff, var(--ice) 60%, var(--celeste));
     border-color: #fff;
   }
+
+  /* Los controles táctiles quedan fuera del juego escalado: siempre tienen tamaño de dedo. */
+  .mobile-help { display: none; }
+  .mobile .mobile-help { display: block; }
+  .mobile:not(.playing) #wrap { position: fixed; inset: 0; width: 100%; height: 100%; transform: none !important; }
+  .mobile .overlay { box-sizing: border-box; overflow-y: auto; justify-content: flex-start; padding: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .mobile .cards { flex-wrap: wrap; justify-content: center; width: 100%; }
+  .mobile .card { box-sizing: border-box; max-width: 100%; flex-shrink: 0; }
+  .mobile .title { font-size: clamp(22px, 6vw, 40px) !important; }
+  .mobile input { font-size: 16px; max-width: 80%; }
+  .mobile button, .mobile select { min-height: 44px; }
+  .mobile #invite { box-sizing: border-box; width: calc(100% - 16px); flex-wrap: wrap; justify-content: center; }
+  .mobile #controlsTable { border-spacing: 4px; font-size: 8px; }
+  .mobile #controlsTable button { min-width: 70px; padding: 6px; font-size: 8px; }
+  #touchControls { position: fixed; inset: auto 0 0; z-index: 5; padding: 8px max(8px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #020617; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .touch-toolbar { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .touch-toolbar button { min-height: 36px; padding: 6px 8px; font-size: 7px; }
+  .touch-pads { display: flex; justify-content: space-between; gap: 8px; }
+  .touch-pad { display: flex; gap: 6px; }
+  .touch-button { width: clamp(48px, 8vw, 64px); min-height: 56px; padding: 4px; font-size: 7px; }
+  .touch-button span { display: block; margin-bottom: 4px; font: bold 24px sans-serif; }
+  .touch-button.pressed { transform: translateY(3px); filter: brightness(1.35); box-shadow: 0 1px 0 var(--navy); }
+  .touch-button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 </style>
 </head>
 <body>
@@ -104,6 +127,7 @@
     <div>
       <h1 class="title">ROCKET RETRO</h1>
       <div class="subtitle">fútbol con autos · 1 vs 1</div>
+      <small class="mobile-help">Controles táctiles al jugar · Más cómodo con el celular horizontal</small>
       <div class="account">👤 <span id="accountName"></span> <button id="changeAccount" class="small">cambiar</button></div>
     </div>
 
@@ -235,6 +259,26 @@
     <h1 id="winner"></h1>
     <div id="payout"></div>
     <div><button id="retry" class="hidden">↺ Repetir</button> <button id="again">Volver al menú</button></div>
+  </div>
+</div>
+
+<div id="touchControls" class="hidden" role="group" aria-label="Controles táctiles del juego">
+  <div class="touch-toolbar">
+    <small id="touchCar" class="p1">AUTO ROJO</small>
+    <button id="touchSwitch" type="button">CAMBIAR AUTO</button>
+    <button id="touchPause" type="button">PAUSA</button>
+    <button id="touchReset" type="button">REINICIAR JUGADA</button>
+  </div>
+  <div class="touch-pads">
+    <div class="touch-pad">
+      <button class="touch-button" data-action="left" type="button" aria-label="Mover a la izquierda" aria-pressed="false"><span aria-hidden="true">←</span>IZQ.</button>
+      <button class="touch-button" data-action="right" type="button" aria-label="Mover a la derecha" aria-pressed="false"><span aria-hidden="true">→</span>DER.</button>
+    </div>
+    <div class="touch-pad">
+      <button class="touch-button" data-action="down" type="button" aria-label="Bajar rápido" aria-pressed="false"><span aria-hidden="true">↓</span>BAJAR</button>
+      <button class="touch-button" data-action="jump" type="button" aria-label="Saltar" aria-pressed="false"><span aria-hidden="true">↑</span>SALTAR</button>
+      <button class="touch-button" data-action="boost" type="button" aria-label="Usar turbo" aria-pressed="false"><span aria-hidden="true">»</span>TURBO</button>
+    </div>
   </div>
 </div>
 

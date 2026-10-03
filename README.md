@@ -40,6 +40,8 @@ Elegí un nombre de usuario, seleccioná una cancha y tocá **JUGAR**.
 - Si el turbo se agota en el aire, tocá el piso o una rampa para volver a recargarlo.
 - En **ENTRENAMIENTO** podés practicar libremente, tiros o atajadas; **R** reinicia la jugada.
 
+En celular o tablet aparecen automáticamente botones para mover, saltar, bajar y usar turbo. Podés mantener varios a la vez; conviene jugar con la pantalla horizontal. En online controlan tu auto y en entrenamiento el único auto. En local, **CAMBIAR AUTO** elige rojo o azul; el rival usa teclado o joystick. También hay botones para pausar en local y reiniciar la jugada de entrenamiento.
+
 ## Jugar desde dos computadoras
 
 Los dos deben abrir el **mismo servidor**, con nombres distintos. Solo la computadora que lo aloja necesita instalar el proyecto.
