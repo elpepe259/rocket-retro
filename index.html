@@ -23,7 +23,7 @@
   /* Fondo de las pantallas: degradado azul → celeste */
   .overlay {
     position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center;
-    background: linear-gradient(160deg, var(--navy) 0%, #023e8a 40%, var(--blue) 70%, var(--sky) 100%);
+    background: radial-gradient(ellipse at top left, #164b7b, transparent 65%), linear-gradient(150deg, #071428, #0a1839 65%, #102541);
   }
   .overlay::before { /* líneas de TV retro */
     content: ''; position: absolute; inset: 0; pointer-events: none;
@@ -42,7 +42,7 @@
   .cards { display: flex; gap: 18px; align-items: stretch; }
   .card {
     width: 360px; padding: 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center;
-    background: #03045e88; border: 2px solid #90e0ef66; box-shadow: inset 0 0 20px #00b4d833;
+    background: #071428dd; border: 1px solid #90e0ef55; box-shadow: inset 0 1px 0 #90e0ef33, 0 10px 24px #0005;
   }
   .card h2 { font-size: 12px; color: var(--celeste); }
 
@@ -108,15 +108,59 @@
   .mobile #invite { box-sizing: border-box; width: calc(100% - 16px); flex-wrap: wrap; justify-content: center; }
   .mobile #controlsTable { border-spacing: 4px; font-size: 8px; }
   .mobile #controlsTable button { min-width: 70px; padding: 6px; font-size: 8px; }
-  #touchControls { position: fixed; inset: auto 0 0; z-index: 5; padding: 8px max(8px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); background: #020617; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-  .touch-toolbar { display: flex; justify-content: center; align-items: center; gap: 8px; margin-bottom: 8px; }
+  #touchControls { position: fixed; inset: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); z-index: 5; pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  .touch-toolbar { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; gap: 8px; white-space: nowrap; }
+  .touch-toolbar button { pointer-events: auto; }
   .touch-toolbar button { min-height: 36px; padding: 6px 8px; font-size: 7px; }
   .touch-pads { display: flex; justify-content: space-between; gap: 8px; }
   .touch-pad { display: flex; gap: 6px; }
-  .touch-button { width: clamp(48px, 8vw, 64px); min-height: 56px; padding: 4px; font-size: 7px; }
+  .touch-button { position: absolute; pointer-events: auto; opacity: .72; width: clamp(48px, 8vw, 64px); height: 56px; padding: 4px; font-size: 7px; background: #0c2a47bb; border-color: #90e0efaa; box-shadow: 0 3px 0 #0008; }
   .touch-button span { display: block; margin-bottom: 4px; font: bold 24px sans-serif; }
   .touch-button.pressed { transform: translateY(3px); filter: brightness(1.35); box-shadow: 0 1px 0 var(--navy); }
   .touch-button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .touch-editing .touch-toolbar { display: none; }
+  .touch-editing .touch-button { opacity: 1; cursor: grab; border: 2px dashed var(--gold); }
+  #touchEditor { position: fixed; inset: 0; z-index: 4; background: linear-gradient(#071428f5, #071428dd), repeating-linear-gradient(0deg, transparent 0 39px, #90e0ef22 39px 40px); padding: max(16px, env(safe-area-inset-top)) 14px; box-sizing: border-box; text-align: center; }
+  #touchEditor h2 { font-size: 16px; color: var(--gold); margin-bottom: 12px; }
+  #touchEditor .editor-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+  #touchEditorNote { display: block; max-width: 600px; margin: auto; }
+  #touchEditor button { font-size: 9px; }
+
+  /* Menú arcade: la cancha es protagonista y las apuestas quedan en un panel opcional. */
+  #menu { display: block; box-sizing: border-box; padding: 16px 28px; overflow-y: auto; }
+  .menu-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; text-align: left; }
+  .menu-head .title { font-size: 32px; }
+  .menu-head .account { margin: 0; padding: 8px 12px; background: #02061799; border: 1px solid #90e0ef44; border-radius: 24px; font-size: 8px; }
+  .menu-layout { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 22px; align-items: start; }
+  .menu-showcase { overflow: hidden; border: 1px solid #90e0ef88; border-radius: 16px; background: #020617; box-shadow: 0 0 36px #00b4d822; text-align: left; }
+  .showcase-top { display: flex; justify-content: space-between; padding: 14px 18px; font-size: 9px; color: var(--gold); background: #0d233d; }
+  #menuPreview { width: 100%; aspect-ratio: 1280 / 484; overflow: hidden; background: #020617; }
+  #menuPreview canvas { display: block; width: 100% !important; height: 100% !important; }
+  .showcase-caption { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px; border-top: 2px solid var(--gold); }
+  .showcase-caption h2 { font-size: 22px; color: #fff; margin-top: 8px; }
+  .showcase-badge { color: var(--celeste); font-size: 9px; line-height: 1.8; text-align: right; }
+  .menu-actions { display: flex; flex-direction: column; gap: 12px; }
+  #menu .card { width: 100%; box-sizing: border-box; gap: 6px; padding: 12px; }
+  #menu .card > div { width: 100%; }
+  #menu button { font-size: 9px; padding: 8px 10px; }
+  #menu #free { background: linear-gradient(#ffe97a, #ffb82e); border-color: #fff3b0; color: #14243b; text-shadow: none; box-shadow: 0 4px 0 #ae681c, 0 0 20px #ffd23f33; font-size: 16px; min-height: 46px; }
+  .menu-button-row { display: flex; gap: 8px; justify-content: center; }
+  .menu-button-row button { flex: 1; }
+  .menu-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .menu-field select, .menu-field input { box-sizing: border-box; max-width: 190px; font-size: 10px; min-height: 30px; }
+  .controls-help { width: 100%; text-align: left; }
+  summary { cursor: pointer; color: var(--celeste); font-size: 9px; padding: 8px 0; }
+  #betPanel { display: block !important; border-color: #ffd23f66; text-align: left; }
+  #betPanel > summary { color: var(--gold); }
+  #betPanel .bet-content { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 10px; text-align: center; }
+  #betPanel:not([open]) .bet-content { display: none; }
+  .mobile #menu { padding: max(16px, env(safe-area-inset-top)) 12px 24px; }
+  .mobile .menu-head { flex-wrap: wrap; }
+  .mobile .menu-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .mobile #menu .menu-field input { font-size: 16px; }
+  .mobile .showcase-caption h2 { font-size: 18px; }
+  @media (min-width: 700px) { .mobile .menu-layout { grid-template-columns: minmax(0, 1fr) 340px; } }
+  @media (prefers-reduced-motion: reduce) { button { transition: none; } }
 </style>
 </head>
 <body>
@@ -124,30 +168,40 @@
   <div id="game"></div>
 
   <div id="menu" class="overlay">
-    <div>
+    <div class="menu-head">
+      <div>
       <h1 class="title">ROCKET RETRO</h1>
-      <div class="subtitle">fútbol con autos · 1 vs 1</div>
-      <small class="mobile-help">Controles táctiles al jugar · Más cómodo con el celular horizontal</small>
+      <div class="subtitle">FÚTBOL CON AUTOS · PIXEL ARCADE · 1 VS 1</div>
+      <small class="mobile-help">Cancha más grande en horizontal · Botones a tu gusto</small>
+      </div>
       <div class="account">👤 <span id="accountName"></span> <button id="changeAccount" class="small">cambiar</button></div>
     </div>
 
-    <div class="cards">
+    <div class="menu-layout">
+      <section class="menu-showcase" aria-label="Galería de canchas y autos">
+        <div class="showcase-top"><span>ELIGÍ TU PRÓXIMA CANCHA</span><span id="previewCount">1 / 6</span></div>
+        <div id="menuPreview" role="img" aria-label="Autos y canchas del juego"></div>
+        <div class="showcase-caption"><div><small>EN PANTALLA · CAMBIA CADA 5 SEGUNDOS</small><h2 id="previewName">Barrio</h2></div><div class="showcase-badge">6 CANCHAS<br>2 AUTOS · 1 GANADOR</div></div>
+      </section>
+      <div class="menu-actions">
       <div class="card">
         <h2>⚽ JUGAR</h2>
         <button id="free" class="big">JUGAR</button>
-        <div><button id="openOnline">🌐 ONLINE</button> <button id="openFriends">👥 AMIGOS</button></div>
+        <div class="menu-button-row"><button id="openOnline">🌐 ONLINE</button> <button id="openFriends">👥 AMIGOS</button></div>
         <button id="openTraining">🎯 ENTRENAMIENTO</button>
-        <div><label for="stadium">Cancha:</label> <select id="stadium"></select></div>
-        <div><label for="p2name" class="p1">Rival (J1 rojo):</label> <input id="p2name" maxlength="12" placeholder="JUGADOR 1" autocomplete="off" spellcheck="false" style="width:160px"></div>
-        <div><button id="openControls">⚙ CONTROLES</button> <button id="fullscreen">⛶ PANTALLA</button></div>
-        <small>
+        <div class="menu-field"><label for="stadium">Cancha:</label> <select id="stadium"></select></div>
+        <div class="menu-field"><label for="p2name" class="p1">Rival (rojo):</label> <input id="p2name" maxlength="12" placeholder="JUGADOR 1" autocomplete="off" spellcheck="false" style="width:160px"></div>
+        <div class="menu-button-row"><button id="openControls">⚙ CONTROLES</button> <button id="fullscreen">⛶ PANTALLA</button></div>
+        <button id="openTouchLayout" class="mobile-help">✥ ACOMODAR BOTONES</button>
+        <details class="controls-help"><summary>VER CONTROLES</summary><small>
           <span id="help"></span>
           Joystick: palanca mover · A saltar · B bajar · X o RT turbo
-        </small>
+        </small></details>
       </div>
 
-      <div class="card">
-        <h2>💰 PARTIDO CON APUESTA</h2>
+      <details class="card" id="betPanel">
+        <summary>💰 APUESTAS · SOL DE PRUEBA</summary>
+        <div class="bet-content">
         <div>Apuesta: <input id="amount" type="number" value="0.1" min="0.01" step="0.01"> SOL</div>
         <button id="dep1" class="p1">J1: conectar y apostar</button>
         <small>Después cambiá de cuenta en Phantom</small>
@@ -160,6 +214,8 @@
           Saldo: <span id="potBal">?</span> SOL <button id="airdrop" class="small">+1 SOL</button><br>
           SOL de prueba (devnet), sin valor real
         </small>
+        </div>
+      </details>
       </div>
     </div>
   </div>
@@ -250,6 +306,7 @@
       <button id="resume" class="big">▶ CONTINUAR</button>
       <button id="restart">↺ REINICIAR</button>
       <button id="pauseControls">⚙ CONTROLES</button>
+      <button id="pauseTouchLayout" class="mobile-help">✥ ACOMODAR BOTONES</button>
       <button id="quit">✖ SALIR AL MENÚ</button>
     </div>
     <small>P o ESC para seguir jugando</small>
@@ -259,6 +316,16 @@
     <h1 id="winner"></h1>
     <div id="payout"></div>
     <div><button id="retry" class="hidden">↺ Repetir</button> <button id="again">Volver al menú</button></div>
+  </div>
+</div>
+
+<div id="touchEditor" class="hidden" role="dialog" aria-modal="true" aria-labelledby="touchEditorTitle">
+  <h2 id="touchEditorTitle">TUS BOTONES, TU ESTILO</h2>
+  <small id="touchEditorNote">Arrastrá los botones hasta donde te resulte cómodo.</small>
+  <div class="editor-actions">
+    <button id="saveTouchLayout" type="button">GUARDAR</button>
+    <button id="resetTouchLayout" type="button">RESTABLECER</button>
+    <button id="cancelTouchLayout" type="button">CANCELAR</button>
   </div>
 </div>
 

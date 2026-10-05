@@ -40,7 +40,11 @@ Elegí un nombre de usuario, seleccioná una cancha y tocá **JUGAR**.
 - Si el turbo se agota en el aire, tocá el piso o una rampa para volver a recargarlo.
 - En **ENTRENAMIENTO** podés practicar libremente, tiros o atajadas; **R** reinicia la jugada.
 
-En celular o tablet aparecen automáticamente botones para mover, saltar, bajar y usar turbo. Podés mantener varios a la vez; conviene jugar con la pantalla horizontal. En online controlan tu auto y en entrenamiento el único auto. En local, **CAMBIAR AUTO** elige rojo o azul; el rival usa teclado o joystick. También hay botones para pausar en local y reiniciar la jugada de entrenamiento.
+En celular o tablet la cancha aprovecha toda la pantalla y los botones se superponen sobre el juego. Podés mantener varios a la vez; conviene jugar con la pantalla horizontal. En online controlan tu auto y en entrenamiento el único auto. En local, **CAMBIAR AUTO** elige rojo o azul; el rival usa teclado o joystick. También hay botones para pausar en local y reiniciar la jugada de entrenamiento.
+
+Desde **ACOMODAR BOTONES**, en el menú o la pausa del celular, arrastrá cada botón hasta donde quieras y tocá **GUARDAR**. Se guardan posiciones distintas para vertical y horizontal en ese navegador. **CANCELAR** descarta los cambios y **RESTABLECER** recupera las posiciones iniciales (confirmalas con **GUARDAR**).
+
+El menú muestra los autos en las seis canchas y cambia la vista cada cinco segundos, tanto en PC como en celular. La galería no cambia la cancha que elegiste para jugar.
 
 ## Jugar desde dos computadoras
 

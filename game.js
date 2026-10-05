@@ -1,6 +1,7 @@
 const W = 1280, H = 540; // tamaño de la cancha (ancho x alto)
 const FLOOR = 500, MATCH_SECONDS = 120;
 const COUNTDOWN_STEP = 800; // milisegundos entre cada número de la cuenta regresiva
+const MENU_PREVIEW_MS = 5000; // cambio de cancha en el menú
 const GOAL_TOP = 250, GOAL_BOTTOM = 400; // arcos elevados, estilo Sideswipe
 const RAMP_ANGLE = 55;  // qué tan empinada termina la rampa (grados)
 const RAMP_CURVE = 150; // radio de la curva (más chico = más corta y empinada)
@@ -95,6 +96,7 @@ const saveControls = () => { try { localStorage.setItem('controls2', JSON.string
 // Teclas apretadas en este momento
 const held = new Set();
 const touchPointers = new Map(); // pointerId -> acción; cada dedo se suelta por separado
+const touchDrags = new Map(); // dedos que acomodan botones, sin jugar
 let touchPlayer = 0;
 const isGameKey = code => [CONTROLS.online, ...CONTROLS.local].some(set => Object.values(set).flat().includes(code));
 // Windows a veces no avisa cuando se suelta Shift (sobre todo Shift derecho + flechas) y la tecla queda "trabada".
@@ -120,8 +122,8 @@ class Match extends Phaser.Scene {
 
   // Dibujos de los autos (y el segundo cuadro de cada uno, con las ruedas giradas).
   preload() {
-    for (const st of Object.values(STADIUMS)) {
-      for (const key of st.cars) {
+    for (const key of new Set(Object.values(STADIUMS).flatMap(st => st.cars))) {
+      if (!this.textures.exists(key)) {
         this.load.image(key, `assets/cars/${key}.png`);
         this.load.image(key + '_b', `assets/cars/${key}_b.png`);
       }
@@ -347,8 +349,8 @@ class Match extends Phaser.Scene {
   }
 
   // Solo dibujo: fondo de la cancha elegida (stadiums.js), piso, líneas y arcos. La física está en create().
-  drawStadium() {
-    const st = STADIUMS[selectedStadium()];
+  drawStadium(key = selectedStadium()) {
+    const st = STADIUMS[key];
     const fondo = this.add.graphics();
     const fieldH = FLOOR - FIELD_TOP;
 
@@ -365,7 +367,7 @@ class Match extends Phaser.Scene {
     }
     g.fillStyle(st.under).fillRect(0, FLOOR, W, H - FLOOR);
     // Grano fino del material, con semilla fija: más detalle sin animar cientos de objetos.
-    const rng = rngFor(selectedStadium() + '-material');
+    const rng = rngFor(key + '-material');
     for (let i = 0; i < 150; i++) {
       g.fillStyle(i % 2 ? 0xffffff : 0x000000, 0.07).fillRect(rng.between(60, W - 60), rng.between(FIELD_TOP + 5, FLOOR - 5), rng.between(1, 3), 1);
     }
@@ -834,10 +836,31 @@ class Match extends Phaser.Scene {
   }
 }
 
+// Vista real de las canchas, con los mismos fondos y sprites que el partido.
+class MenuPreview extends Phaser.Scene {
+  constructor() { super('preview'); }
+  preload() { Match.prototype.preload.call(this); }
+  create(data) {
+    const keys = Object.keys(STADIUMS), index = data.index ?? 0, key = keys[index], st = STADIUMS[key];
+    Match.prototype.drawStadium.call(this, key);
+    this.cameras.main.setScroll(0, 56); // la galería recorta la franja reservada al marcador
+    st.cars.forEach((car, i) => this.add.image(i ? 940 : 340, FLOOR - 6, car).setOrigin(0.5, 1).setScale(2.1).setFlipX(!!i));
+    $('previewName').textContent = st.name;
+    $('menuPreview').setAttribute('aria-label', `Autos del juego en la cancha ${st.name}`);
+    $('previewCount').textContent = `${index + 1} / ${keys.length}`;
+    // El reloj del juego se ralentiza con FPS bajos; la galería usa segundos reales.
+    const timer = setInterval(() => {
+      if (!document.hidden && !$('menu').classList.contains('hidden')) this.scene.restart({ index: (index + 1) % keys.length });
+    }, MENU_PREVIEW_MS);
+    this.events.once('shutdown', () => clearInterval(timer));
+    if (document.hidden || $('menu').classList.contains('hidden')) this.scene.pause();
+  }
+}
+
 // ---------- Menú y apuestas ----------
 const $ = id => document.getElementById(id);
 const status = text => { $('status').textContent = text; };
-let game, betOn = false;
+let game, menuPreviewGame, betOn = false;
 let mode = { training: null }; // qué se juega: partido (training: null) o un ejercicio de entrenamiento
 const TRAINING_NAMES = { libre: 'LIBRE', tiros: 'TIROS', arquero: 'ARQUERO' };
 
@@ -851,10 +874,11 @@ function mergedControls() {
 // ---------- Pantalla completa ----------
 // Agranda todo el juego (canvas + menús) para llenar la ventana, sin deformarlo
 function fitScreen() {
-  const alto = innerHeight - $('touchControls').offsetHeight;
+  const alto = innerHeight;
   const scale = Math.min(innerWidth / W, Math.max(1, alto) / H);
   $('wrap').style.setProperty('--game-top', `${alto / 2}px`);
   $('wrap').style.transform = `translate(-50%, -50%) scale(${scale})`;
+  positionTouchButtons();
 }
 addEventListener('resize', fitScreen);
 
@@ -862,16 +886,69 @@ addEventListener('resize', fitScreen);
 const coarsePointer = matchMedia('(any-pointer: coarse)');
 let mobile = navigator.maxTouchPoints > 0 || coarsePointer.matches;
 const touchButtons = [...document.querySelectorAll('.touch-button')];
+let touchEditing = false, touchDraft = null, touchReturnFocus;
+let touchLayout = { portrait: {}, landscape: {} };
+try {
+  const saved = JSON.parse(localStorage.getItem('touchLayout'));
+  for (const orientation of ['portrait', 'landscape']) for (const b of touchButtons) {
+    const p = saved?.[orientation]?.[b.dataset.action];
+    if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1) touchLayout[orientation][b.dataset.action] = { x: p.x, y: p.y };
+  }
+} catch {}
+function positionTouchButtons() {
+  if ($('touchControls').classList.contains('hidden')) return;
+  const area = $('touchControls').getBoundingClientRect(), orientation = innerWidth > innerHeight ? 'landscape' : 'portrait';
+  const layout = (touchEditing ? touchDraft : touchLayout)[orientation];
+  touchButtons.forEach((b, i) => {
+    const w = b.offsetWidth, h = b.offsetHeight, p = layout[b.dataset.action];
+    const defaults = [0, w + 8, area.width - 3 * w - 16, area.width - 2 * w - 8, area.width - w];
+    b.style.left = `${Math.max(0, Math.min(area.width - w, p ? p.x * (area.width - w) : defaults[i]))}px`;
+    b.style.top = `${Math.max(0, p ? p.y * (area.height - h) : area.height - h)}px`;
+  });
+}
+function moveTouchButton(b, x, y) {
+  const area = $('touchControls').getBoundingClientRect(), width = Math.max(1, area.width - b.offsetWidth), height = Math.max(1, area.height - b.offsetHeight);
+  touchDraft[innerWidth > innerHeight ? 'landscape' : 'portrait'][b.dataset.action] = { x: Math.max(0, Math.min(1, x / width)), y: Math.max(0, Math.min(1, y / height)) };
+  positionTouchButtons();
+}
+function openTouchEditor() {
+  if (!mobile) return;
+  clearTouches();
+  touchReturnFocus = document.activeElement;
+  touchDraft = JSON.parse(JSON.stringify(touchLayout));
+  touchEditing = true;
+  $('wrap').inert = true;
+  $('touchEditor').classList.remove('hidden');
+  $('touchEditorNote').textContent = 'Arrastrá cada botón. Con teclado, usá las flechas sobre el botón.';
+  updateTouchControls();
+  $('saveTouchLayout').focus();
+}
+function closeTouchEditor() {
+  clearTouches();
+  touchEditing = false;
+  touchDraft = null;
+  $('wrap').inert = false;
+  $('touchEditor').classList.add('hidden');
+  updateTouchControls();
+  touchReturnFocus?.focus();
+}
 function clearTouches() {
   touchPointers.clear();
+  touchDrags.clear();
   for (const b of touchButtons) { b.classList.remove('pressed'); b.setAttribute('aria-pressed', 'false'); }
 }
 function updateTouchControls() {
   const playing = !!game && !$('wrap').querySelector('.overlay:not(.hidden)');
   document.body.classList.toggle('mobile', mobile);
   document.body.classList.toggle('playing', playing);
-  $('touchControls').classList.toggle('hidden', !mobile || !playing);
-  if (!mobile || !playing) clearTouches();
+  document.body.classList.toggle('touch-editing', touchEditing);
+  $('touchControls').classList.toggle('hidden', !mobile || (!playing && !touchEditing));
+  if (!mobile || (!playing && !touchEditing)) clearTouches();
+  if (menuPreviewGame) {
+    const visible = !document.hidden && !$('menu').classList.contains('hidden');
+    if (!visible && menuPreviewGame.scene.isActive('preview')) menuPreviewGame.scene.pause('preview');
+    else if (visible && menuPreviewGame.scene.isPaused('preview')) menuPreviewGame.scene.resume('preview');
+  }
   $('touchPause').classList.toggle('hidden', !!mode.online);
   $('touchReset').classList.toggle('hidden', !mode.training);
   $('touchSwitch').classList.toggle('hidden', !!mode.online || !!mode.training);
@@ -884,22 +961,39 @@ for (const b of touchButtons) {
   b.addEventListener('pointerdown', e => {
     if (e.button !== 0 || $('touchControls').classList.contains('hidden')) return;
     e.preventDefault();
-    touchPointers.set(e.pointerId, b.dataset.action);
     b.setPointerCapture(e.pointerId); // sigue recibiendo la suelta aunque el dedo salga del botón
+    if (touchEditing) {
+      const rect = b.getBoundingClientRect();
+      touchDrags.set(e.pointerId, { b, dx: e.clientX - rect.left, dy: e.clientY - rect.top });
+      return;
+    }
+    touchPointers.set(e.pointerId, b.dataset.action);
     b.classList.add('pressed');
     b.setAttribute('aria-pressed', 'true');
   });
   const release = e => {
+    touchDrags.delete(e.pointerId);
     touchPointers.delete(e.pointerId);
     const active = [...touchPointers.values()].includes(b.dataset.action);
     b.classList.toggle('pressed', active);
     b.setAttribute('aria-pressed', String(active));
   };
   for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(event, release);
+  b.addEventListener('pointermove', e => {
+    const drag = touchDrags.get(e.pointerId);
+    if (!touchEditing || !drag) return;
+    const area = $('touchControls').getBoundingClientRect();
+    moveTouchButton(b, e.clientX - area.left - drag.dx, e.clientY - area.top - drag.dy);
+  });
+  b.addEventListener('keydown', e => {
+    if (!touchEditing || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) return;
+    e.preventDefault(); e.stopPropagation();
+    moveTouchButton(b, parseFloat(b.style.left) + (e.code === 'ArrowRight' ? 10 : e.code === 'ArrowLeft' ? -10 : 0), parseFloat(b.style.top) + (e.code === 'ArrowDown' ? 10 : e.code === 'ArrowUp' ? -10 : 0));
+  });
   b.addEventListener('contextmenu', e => e.preventDefault());
 }
 addEventListener('blur', clearTouches);
-document.addEventListener('visibilitychange', () => { if (document.hidden) { held.clear(); clearTouches(); } });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { held.clear(); clearTouches(); } updateTouchControls(); });
 addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch' && !mobile) { mobile = true; updateTouchControls(); }
 }, { capture: true });
@@ -910,6 +1004,15 @@ $('touchPause').onclick = pauseGame;
 $('touchReset').onclick = () => { clearTouches(); game?.scene.getScene('match').resetPlay(); };
 // ponytail: en local se maneja un auto a la vez; el rival usa teclado/joystick. Dos celulares usan online.
 $('touchSwitch').onclick = () => { clearTouches(); touchPlayer = 1 - touchPlayer; updateTouchControls(); };
+$('openTouchLayout').onclick = $('pauseTouchLayout').onclick = openTouchEditor;
+$('cancelTouchLayout').onclick = closeTouchEditor;
+$('resetTouchLayout').onclick = () => { touchDraft = { portrait: {}, landscape: {} }; positionTouchButtons(); };
+$('saveTouchLayout').onclick = () => {
+  try { localStorage.setItem('touchLayout', JSON.stringify(touchDraft)); }
+  catch { $('touchEditorNote').textContent = 'No se pudo guardar en este navegador. Probá otra vez o cancelá.'; return; }
+  touchLayout = touchDraft;
+  closeTouchEditor();
+};
 updateTouchControls();
 
 function enterFullscreen() {
@@ -1059,6 +1162,7 @@ function backToMenu() {
   refreshMenu();
 }
 addEventListener('keydown', e => {
+  if (touchEditing) { if (e.code === 'Escape') { e.preventDefault(); closeTouchEditor(); } return; }
   if (e.target.tagName === 'INPUT' || !$('config').classList.contains('hidden')) return; // escribiendo o en controles
   if (e.code === 'KeyP' || e.code === 'Escape') {
     if (game?.scene.isPaused('match')) resumeGame(); else pauseGame();
@@ -1353,3 +1457,7 @@ else showRegister();
 // Conectarse al servidor apenas abre la página (si hay servidor) para aparecer conectado a los amigos
 if (account) net.me = account.name;
 net.connect().catch(() => {}); // sin servidor (python) simplemente no hay online
+
+// ponytail: vista sin física a 20 FPS, pausada fuera del menú; si crece, precalcular las seis imágenes.
+menuPreviewGame = new Phaser.Game({ type: Phaser.AUTO, width: W, height: H - 56, parent: 'menuPreview', pixelArt: true,
+  backgroundColor: '#020617', audio: { noAudio: true }, fps: { target: 20, limit: 20 }, scene: MenuPreview });

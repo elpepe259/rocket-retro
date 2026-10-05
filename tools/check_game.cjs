@@ -126,16 +126,17 @@ assert.equal(entrada.readInput(rojo).right, true, 'Entrenamiento usa el único a
 function elemento(clases = []) {
   const lista = new Set(clases);
   return { dataset: {}, handlers: {}, atributos: {}, style: { setProperty: (k, v) => { nodos.wrap.style[k] = v; } },
+    offsetWidth: 48, offsetHeight: 56, focus() {}, getBoundingClientRect() { return { left: parseFloat(this.style.left) || 0, top: parseFloat(this.style.top) || 0, width: this.offsetWidth, height: this.offsetHeight }; },
     classList: { contains: k => lista.has(k), add: k => lista.add(k), remove: k => lista.delete(k),
       toggle: (k, valor) => { if (valor) lista.add(k); else lista.delete(k); } },
     addEventListener(nombre, fn) { this.handlers[nombre] = fn; },
     setAttribute(k, v) { this.atributos[k] = v; }, setPointerCapture(id) { this.capturado = id; } };
 }
-const nodos = Object.fromEntries(['wrap', 'touchControls', 'touchPause', 'touchReset', 'touchSwitch', 'touchCar'].map(k => [k, elemento()]));
+const nodos = Object.fromEntries(['wrap', 'touchControls', 'touchPause', 'touchReset', 'touchSwitch', 'touchCar', 'openTouchLayout', 'pauseTouchLayout', 'touchEditor', 'touchEditorNote', 'saveTouchLayout', 'resetTouchLayout', 'cancelTouchLayout'].map(k => [k, elemento()]));
 const botones = ['left', 'right', 'down', 'jump', 'boost'].map(action => Object.assign(elemento(), { dataset: { action } }));
 let overlay = true;
 nodos.wrap.querySelector = () => overlay ? {} : null;
-Object.defineProperty(nodos.touchControls, 'offsetHeight', { get: () => nodos.touchControls.classList.contains('hidden') ? 0 : 120 });
+nodos.touchControls.getBoundingClientRect = () => ({ left: 8, top: 8, width: contexto.innerWidth - 16, height: contexto.innerHeight - 20 });
 const coarse = { matches: false, addEventListener: () => {} };
 let observer;
 contexto.document = { body: elemento(), hidden: false, handlers: {}, getElementById: k => nodos[k],
@@ -146,19 +147,23 @@ contexto.innerWidth = 390;
 contexto.innerHeight = 844;
 contexto.MutationObserver = class { constructor(fn) { observer = fn; } observe() {} };
 contexto.pauseGame = () => {};
-vm.runInContext('const $ = id => document.getElementById(id); let game = {};\n' +
+contexto.localStorage.getItem = () => JSON.stringify({ portrait: { left: { x: -1, y: 0.5 }, jump: { x: '0.2', y: 0 } }, landscape: { boost: { x: 4, y: 0 } } });
+vm.runInContext('const $ = id => document.getElementById(id); let game = {}, menuPreviewGame;\n' +
   fuente.slice(fuente.indexOf('// ---------- Pantalla completa ----------'), fuente.indexOf('function enterFullscreen()')), contexto);
 assert.equal(contexto.document.body.classList.contains('mobile'), false, 'Desktop no muestra el mando táctil.');
 assert.ok(nodos.touchControls.classList.contains('hidden'));
+nodos.openTouchLayout.onclick();
+assert.notEqual(nodos.wrap.inert, true, 'El editor no se abre desde PC.');
 overlay = false;
 for (const fn of eventos.get('pointerdown')) fn({ pointerType: 'touch' });
 assert.ok(contexto.document.body.classList.contains('mobile'), 'Un toque real también activa el modo móvil.');
 assert.equal(nodos.touchControls.classList.contains('hidden'), false);
-assert.equal(nodos.wrap.style['--game-top'], '362px', 'Se reserva espacio para los botones en vertical.');
+assert.equal(botones[0].style.left, '0px', 'Se ignoran posiciones guardadas inválidas.');
+assert.equal(nodos.wrap.style['--game-top'], '422px', 'El juego usa toda la altura en vertical.');
 contexto.innerWidth = 844;
 contexto.innerHeight = 390;
 contexto.fitScreen();
-assert.equal(nodos.wrap.style['--game-top'], '135px', 'También se reserva espacio en horizontal.');
+assert.equal(nodos.wrap.style['--game-top'], '195px', 'Los botones superpuestos dejan toda la altura en horizontal.');
 const tocar = (indice, pointerId) => botones[indice].handlers.pointerdown({ pointerId, button: 0, preventDefault() {} });
 tocar(1, 10);
 tocar(4, 11);
@@ -187,4 +192,40 @@ assert.ok(nodos.touchControls.classList.contains('hidden'));
 assert.equal(contexto.touchPointers.size, 0, 'Pausa, menú y resultado liberan los dedos.');
 tocar(4, 16);
 assert.equal(contexto.touchPointers.size, 0, 'Los botones ocultos no generan entradas.');
-console.log('OK: stamina, saque, multitáctil, captura/cancelación, pantallas y controles online.');
+
+const guardados = new Map();
+contexto.localStorage.setItem = (k, v) => guardados.set(k, v);
+contexto.document.hidden = false;
+nodos.openTouchLayout.onclick();
+assert.equal(nodos.wrap.inert, true, 'El editor impide tocar los menús de fondo.');
+const antes = { left: botones[0].style.left, top: botones[0].style.top };
+const rect = botones[0].getBoundingClientRect();
+botones[0].handlers.pointerdown({ pointerId: 20, button: 0, clientX: rect.left + 8, clientY: rect.top + 8, preventDefault() {} });
+botones[0].handlers.pointermove({ pointerId: 20, clientX: 250, clientY: 160 });
+assert.equal(contexto.touchPointers.size, 0, 'Arrastrar no acelera ni salta.');
+assert.notEqual(botones[0].style.left, antes.left);
+botones[0].handlers.pointerup({ pointerId: 20 });
+nodos.cancelTouchLayout.onclick();
+assert.equal(guardados.size, 0, 'Cancelar no persiste el borrador.');
+assert.equal(nodos.wrap.inert, false);
+nodos.openTouchLayout.onclick();
+contexto.moveTouchButton(botones[4], 9000, -500);
+nodos.saveTouchLayout.onclick();
+const posiciones = JSON.parse(guardados.get('touchLayout'));
+assert.deepEqual(posiciones.landscape.boost, { x: 1, y: 0 }, 'Se guarda sin sacar botones de pantalla.');
+assert.deepEqual(posiciones.portrait, {}, 'Cada orientación tiene sus propias posiciones.');
+nodos.openTouchLayout.onclick();
+assert.equal(botones[4].style.top, '0px', 'El editor recupera las posiciones guardadas.');
+nodos.resetTouchLayout.onclick();
+nodos.cancelTouchLayout.onclick();
+nodos.openTouchLayout.onclick();
+assert.equal(botones[4].style.top, '0px', 'Restablecer y cancelar conserva el diseño previo.');
+contexto.localStorage.setItem = () => { throw new Error('Cuota'); };
+nodos.saveTouchLayout.onclick();
+assert.ok(nodos.touchEditorNote.textContent.includes('No se pudo guardar'));
+assert.equal(nodos.wrap.inert, true, 'Si falla el guardado, el borrador queda abierto.');
+contexto.localStorage.setItem = (k, v) => guardados.set(k, v);
+nodos.resetTouchLayout.onclick();
+nodos.saveTouchLayout.onclick();
+assert.deepEqual(JSON.parse(guardados.get('touchLayout')), { portrait: {}, landscape: {} });
+console.log('OK: stamina, multitáctil, online, pantalla completa y editor con guardado/cancelación/restauración.');

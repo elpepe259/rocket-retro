@@ -42,7 +42,8 @@ Ya está hecho:
 - Voltereta: el doble salto con dirección da una vuelta completa (`FLIP_*`) y, si toca la pelota, le pega un pelotazo hacia ese lado.
 - Explosión de color al hacer gol, con el nombre de quien anotó.
 - Soporte de joystick.
-- Controles táctiles automáticos en pantallas con `maxTouchPoints` o puntero grueso: cinco acciones con Pointer Events y captura por dedo, integradas en `readInput`. El panel queda fuera del juego escalado y se reserva su altura en `fitScreen`; los menús móviles son adaptables. En local `touchPlayer` elige un auto (el rival usa teclado/joystick); online y entrenamiento usan el auto propio. Los overlays, pérdida de foco y pestaña oculta liberan las acciones.
+- Controles táctiles automáticos en pantallas con `maxTouchPoints` o puntero grueso: cinco acciones con Pointer Events y captura por dedo, integradas en `readInput`. Los botones se superponen fuera del juego escalado; `fitScreen` usa toda la pantalla. El editor móvil permite arrastrarlos y guardar/restablecer/cancelar; `localStorage.touchLayout` guarda posiciones normalizadas por orientación. En local `touchPlayer` elige un auto; el rival usa teclado/joystick. Online y entrenamiento usan el auto propio. Los overlays, pérdida de foco y pestaña oculta liberan las acciones.
+- Menú arcade con `MenuPreview`: reutiliza `drawStadium(key)` y los sprites para mostrar las seis canchas cada `MENU_PREVIEW_MS` (5000 ms), sin cambiar la cancha seleccionada. La vista no tiene física, corre a 20 FPS y se pausa fuera del menú.
 - Pantalla para cambiar las teclas.
 - 6 canchas (Barrio, Playa, Espacio, Autopista, Quebrada con cerros de colores y tren, Aurora con montañas nevadas y luces polares), con tramado, texturas y sombras de estilo 16 bits. Las nuevas reutilizan autos existentes y todas usan la pelota clásica. Los dos autos de una cancha tienen el mismo cuerpo físico (`CAR_W` × `car.h`), así ninguno tiene ventaja; el dibujo se apoya en el piso con `car.viewDy`.
 - Arcos elevados estilo Sideswipe (`GOAL_TOP`/`GOAL_BOTTOM`), con rampas curvas en las esquinas (`RAMP_PTS`).
@@ -60,8 +61,8 @@ Queda pendiente (es extra):
 - Sonidos 8-bit.
 
 ## Verificación
-- `node tools/check_game.cjs`: verifica stamina, saque, entradas táctiles simultáneas, cancelación de dedos, liberación al cambiar de pantalla, espacio reservado y entradas online.
-- `node tools/check_stadiums.cjs`: comprueba el dibujo, las animaciones y los sprites de las seis canchas. Complementar con revisión visual en el navegador.
+- `node tools/check_game.cjs`: verifica stamina, saque, multitáctil, cancelación de dedos, entradas online, pantalla completa y editor con guardado/cancelación/restauración.
+- `node tools/check_stadiums.cjs`: comprueba el dibujo compartido, las animaciones, los autos y la rotación de cinco segundos de las seis canchas. Complementar con revisión visual en el navegador.
 - Jugar un partido completo: los goles suman, el reloj llega a 0 y el gol de oro funciona cuando empatan.
 - Apuestas: probarlas con dos cuentas de Phantom en devnet y revisar las transacciones en Solana Explorer (`?cluster=devnet`).
 - Ojo al probar en un navegador automatizado: si la pestaña está en segundo plano, el loop del juego se frena (requestAnimationFrame). Hay que pasarla al frente antes de probar.
